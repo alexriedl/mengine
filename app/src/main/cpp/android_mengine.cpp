@@ -1,16 +1,15 @@
 #include "mengine_platform.h"
 
-#include <android/log.h>
-#include <android_native_app_glue.h>
+#include <sys/mman.h> // Used for munmap and mmap
 
 #include "android_mengine.h"
 
-#define LOGI(...) ((void)__android_log_print(ANDROID_LOG_INFO, "native-activity", __VA_ARGS__))
-#define LOGW(...) ((void)__android_log_print(ANDROID_LOG_WARN, "native-activity", __VA_ARGS__))
+global_variable b32 Running;
 
 // NOTE: Taken from google's native activity example
 // https://github.com/googlesamples/android-ndk/blob/master/native-activity/app/src/main/cpp/main.cpp
-internal int engine_init_display(android_window_info *WindowInfo, android_app *AndroidApp) {
+internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *AndroidApp)
+{
 	// initialize OpenGL ES and EGL
 
 	/*
@@ -75,11 +74,11 @@ internal int engine_init_display(android_window_info *WindowInfo, android_app *A
 	eglQuerySurface(Display, Surface, EGL_WIDTH, &Width);
 	eglQuerySurface(Display, Surface, EGL_HEIGHT, &Height);
 
-	WindowInfo->Display = Display;
-	WindowInfo->Context = Context;
-	WindowInfo->Surface = Surface;
-	WindowInfo->Width = Width;
-	WindowInfo->Height = Height;
+	DisplayInfo->Display = Display;
+	DisplayInfo->Context = Context;
+	DisplayInfo->Surface = Surface;
+	DisplayInfo->Width = Width;
+	DisplayInfo->Height = Height;
 
 	// Check openGL on the system
 	GLenum OpenGLInfo[] = {GL_VENDOR, GL_RENDERER, GL_VERSION, GL_EXTENSIONS};
@@ -98,11 +97,106 @@ internal int engine_init_display(android_window_info *WindowInfo, android_app *A
 	return 0;
 }
 
-void android_main(struct android_app *state)
+internal void AndroidDestroyDisplay(android_display_info *DisplayInfo)
 {
-	for(int x = 0; x < 100; ++x)
+	if(DisplayInfo->Display != EGL_NO_DISPLAY)
 	{
-		LOGI("Logging %d", x);
+		eglMakeCurrent(DisplayInfo->Display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+		if(DisplayInfo->Context != EGL_NO_CONTEXT)
+		{
+			eglDestroyContext(DisplayInfo->Display, DisplayInfo->Context);
+		}
+		if(DisplayInfo->Surface != EGL_NO_SURFACE)
+		{
+			eglDestroySurface(DisplayInfo->Display, DisplayInfo->Surface);
+		}
+		eglTerminate(DisplayInfo->Display);
 	}
-	LOGW("Warning! Ending Test");
+
+	Running = false;
+	DisplayInfo->Display = EGL_NO_DISPLAY;
+	DisplayInfo->Context = EGL_NO_CONTEXT;
+	DisplayInfo->Surface = EGL_NO_SURFACE;
+}
+
+internal void AndroidDisplayBufferInWindow(android_display_info *DisplayInfo)
+{
+	if(DisplayInfo->Display == NULL)
+	{
+		LOGW("Attempted to render without a display to render to. Skipping render...");
+		return;
+	}
+
+	glClearColor(1, 0, 0, 1);
+	glClear(GL_COLOR_BUFFER_BIT);
+	eglSwapBuffers(DisplayInfo->Display, DisplayInfo->Surface);
+}
+
+internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
+{
+	android_state *State = (android_state *)AndroidApp->userData;
+	switch(Command)
+	{
+		case APP_CMD_INIT_WINDOW:
+		{
+			LOGI("COMMAND: Init Window");
+			if(AndroidApp->window != NULL)
+			{
+				AndroidInitDisplay(&State->DisplayInfo, AndroidApp);
+				AndroidDisplayBufferInWindow(&State->DisplayInfo);
+				Running = true;
+			}
+		} break;
+		case APP_CMD_TERM_WINDOW:
+		{
+			LOGI("COMMAND: Term Window");
+			AndroidDestroyDisplay(&State->DisplayInfo);
+		} break;
+		case APP_CMD_GAINED_FOCUS:
+		{
+			// NOTE: Begin doing background work
+		} break;
+		case APP_CMD_LOST_FOCUS:
+		{
+			// NOTE: Stop doing background work
+			Running = false;
+		} break;
+	}
+}
+
+void android_main(struct android_app *AndroidApp)
+{
+	android_state State = {0};
+	AndroidApp->userData = &State;
+	AndroidApp->onAppCmd = AndroidProcessEvent;
+
+	while(1)
+	{
+		// Poll Events
+		{
+			android_poll_source *Source;
+			int ident;
+			int events;
+			while ((ident = ALooper_pollAll(Running ? 0 : -1, NULL, &events, (void**)&Source)) >= 0)
+			{
+				// Process the event
+				if(Source != NULL)
+				{
+					Source->process(AndroidApp, Source);
+				}
+
+				// Check if exiting
+				if (AndroidApp->destroyRequested != 0)
+				{
+					AndroidDestroyDisplay(&State.DisplayInfo);
+					return;
+				}
+			}
+		}
+
+		if(Running)
+		{
+			AndroidDisplayBufferInWindow(&State.DisplayInfo);
+		}
+	}
 }
