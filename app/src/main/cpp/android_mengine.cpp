@@ -41,8 +41,9 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 	EGLConfig SupportedConfigs[NumConfigs];
 	eglChooseConfig(Display, Attribs, SupportedConfigs, NumConfigs, &NumConfigs);
 	u32 ConfigIndex = 0;
-	for (; ConfigIndex < NumConfigs; ConfigIndex++) {
-		EGLConfig& Cfg = SupportedConfigs[ConfigIndex];
+	for(; ConfigIndex < NumConfigs; ConfigIndex++)
+	{
+		EGLConfig &Cfg = SupportedConfigs[ConfigIndex];
 		EGLint r, g, b, d;
 		if (eglGetConfigAttrib(Display, Cfg, EGL_RED_SIZE, &r)   &&
 			eglGetConfigAttrib(Display, Cfg, EGL_GREEN_SIZE, &g) &&
@@ -54,7 +55,8 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 			break;
 		}
 	}
-	if (ConfigIndex == NumConfigs) {
+	if(ConfigIndex == NumConfigs)
+	{
 		Config = SupportedConfigs[0];
 	}
 
@@ -66,7 +68,8 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 	Surface = eglCreateWindowSurface(Display, Config, AndroidApp->window, NULL);
 	Context = eglCreateContext(Display, Config, NULL, NULL);
 
-	if (eglMakeCurrent(Display, Surface, Surface, Context) == EGL_FALSE) {
+	if(eglMakeCurrent(Display, Surface, Surface, Context) == EGL_FALSE)
+	{
 		LOGW("Unable to eglMakeCurrent");
 		return -1;
 	}
@@ -164,6 +167,13 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 	}
 }
 
+r64 AndroidGetWallClock()
+{
+	struct timespec tp;
+	clock_gettime(CLOCK_MONOTONIC, &tp);
+	return 1000.0 * tp.tv_sec + (u64)tp.tv_nsec / 1e6;
+}
+
 void android_main(struct android_app *AndroidApp)
 {
 	android_state State = {0};
@@ -177,7 +187,7 @@ void android_main(struct android_app *AndroidApp)
 			android_poll_source *Source;
 			int ident;
 			int events;
-			while ((ident = ALooper_pollAll(Running ? 0 : -1, NULL, &events, (void**)&Source)) >= 0)
+			while((ident = ALooper_pollAll(Running ? 0 : -1, NULL, &events, (void **)&Source)) >= 0)
 			{
 				// Process the event
 				if(Source != NULL)
@@ -186,7 +196,7 @@ void android_main(struct android_app *AndroidApp)
 				}
 
 				// Check if exiting
-				if (AndroidApp->destroyRequested != 0)
+				if(AndroidApp->destroyRequested != 0)
 				{
 					AndroidDestroyDisplay(&State.DisplayInfo);
 					return;
@@ -196,7 +206,12 @@ void android_main(struct android_app *AndroidApp)
 
 		if(Running)
 		{
+			r64 frameStart = AndroidGetWallClock();
 			AndroidDisplayBufferInWindow(&State.DisplayInfo);
+			r64 frameEnd = AndroidGetWallClock();
+
+			r64 frameDuration = frameEnd - frameStart;
+			LOGI("Frame Duration: %fms", frameStart, frameEnd, frameDuration);
 		}
 	}
 }
