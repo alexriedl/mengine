@@ -13,7 +13,7 @@ b32 SDLInitDisplay()
 {
 	SDL_Init(SDL_INIT_VIDEO);
 
-	//int WindowWidth = 960; int WindowHeight = 540;
+	// int WindowWidth = 960; int WindowHeight = 540;
 	int WindowWidth = 1920; int WindowHeight = 1080;
 	SDL_Window *Window = SDL_CreateWindow("mengine",
 		SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
