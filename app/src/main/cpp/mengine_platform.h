@@ -20,7 +20,7 @@ typedef uint64_t uint64;
 typedef intptr_t intptr;
 typedef uintptr_t uintptr;
 
-typedef size_t memory_index;
+// typedef size_t memory_index;
 
 typedef float real32;
 typedef double real64;

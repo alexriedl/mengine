@@ -4,7 +4,7 @@
 
 #include "android_mengine.h"
 
-global_variable b32 Running;
+global_variable b32 GlobalRunning;
 
 // NOTE: Taken from google's native activity example
 // https://github.com/googlesamples/android-ndk/blob/master/native-activity/app/src/main/cpp/main.cpp
@@ -116,7 +116,7 @@ internal void AndroidDestroyDisplay(android_display_info *DisplayInfo)
 		eglTerminate(DisplayInfo->Display);
 	}
 
-	Running = false;
+	GlobalRunning = false;
 	DisplayInfo->Display = EGL_NO_DISPLAY;
 	DisplayInfo->Context = EGL_NO_CONTEXT;
 	DisplayInfo->Surface = EGL_NO_SURFACE;
@@ -147,7 +147,7 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 			{
 				AndroidInitDisplay(&State->DisplayInfo, AndroidApp);
 				AndroidDisplayBufferInWindow(&State->DisplayInfo);
-				Running = true;
+				GlobalRunning = true;
 			}
 		} break;
 		case APP_CMD_TERM_WINDOW:
@@ -162,7 +162,7 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 		case APP_CMD_LOST_FOCUS:
 		{
 			// NOTE: Stop doing background work
-			Running = false;
+			GlobalRunning = false;
 		} break;
 	}
 }
@@ -187,7 +187,7 @@ void android_main(struct android_app *AndroidApp)
 			android_poll_source *Source;
 			int ident;
 			int events;
-			while((ident = ALooper_pollAll(Running ? 0 : -1, NULL, &events, (void **)&Source)) >= 0)
+			while((ident = ALooper_pollAll(GlobalRunning ? 0 : -1, NULL, &events, (void **)&Source)) >= 0)
 			{
 				// Process the event
 				if(Source != NULL)
@@ -204,7 +204,7 @@ void android_main(struct android_app *AndroidApp)
 			}
 		}
 
-		if(Running)
+		if(GlobalRunning)
 		{
 			r64 frameStart = AndroidGetWallClock();
 			AndroidDisplayBufferInWindow(&State.DisplayInfo);
