@@ -4,6 +4,14 @@
 extern "C" {
 #endif
 
+#if MENGINE_ANDROID
+#include <EGL/egl.h>
+#include <GLES/gl.h>
+#elif MENGINE_SDL
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
+#endif
+
 #include <stdint.h> // Needed for many basic types
 
 typedef int8_t int8;
@@ -57,7 +65,7 @@ typedef real64 r64;
 #endif
 
 #define InvalidCodePath Assert(!"InvalidCodePath")
-#define InvalidDefaultCase default: {InvalidCodePath;} break
+#define InvalidDefaultCase default: { InvalidCodePath; } break
 
 #define Kilobytes(Value) ((Value)*1024LL)
 #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
@@ -76,6 +84,9 @@ inline uint32 SafeTruncateUInt64(uint64 Value)
 	Assert(Value <= 0xFFFFFFFF);
 	return (uint32)Value;
 }
+
+#define GAME_UPDATE_AND_RENDER(Name) void Name()
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
 #ifdef __cplusplus
 }

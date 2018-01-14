@@ -1,6 +1,9 @@
 #include "mengine_platform.h"
+#include "mengine_shared.h"
 
-#include <sys/mman.h> // Used for munmap and mmap
+#include <android_native_app_glue.h>
+#include <memory.h>   // Used for memset
+#include <dlfcn.h>    // Used to load dynamic library
 
 #include "android_mengine.h"
 
@@ -45,10 +48,10 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 	{
 		EGLConfig &Cfg = SupportedConfigs[ConfigIndex];
 		EGLint r, g, b, d;
-		if (eglGetConfigAttrib(Display, Cfg, EGL_RED_SIZE, &r)   &&
-			eglGetConfigAttrib(Display, Cfg, EGL_GREEN_SIZE, &g) &&
-			eglGetConfigAttrib(Display, Cfg, EGL_BLUE_SIZE, &b)  &&
-			eglGetConfigAttrib(Display, Cfg, EGL_DEPTH_SIZE, &d) &&
+		if(eglGetConfigAttrib(Display, Cfg, EGL_RED_SIZE, &r)   &&
+			 eglGetConfigAttrib(Display, Cfg, EGL_GREEN_SIZE, &g) &&
+			 eglGetConfigAttrib(Display, Cfg, EGL_BLUE_SIZE, &b)  &&
+			 eglGetConfigAttrib(Display, Cfg, EGL_DEPTH_SIZE, &d) &&
 			r == 8 && g == 8 && b == 8 && d == 0 ) {
 
 			Config = SupportedConfigs[ConfigIndex];
@@ -122,7 +125,7 @@ internal void AndroidDestroyDisplay(android_display_info *DisplayInfo)
 	DisplayInfo->Surface = EGL_NO_SURFACE;
 }
 
-internal void AndroidDisplayBufferInWindow(android_display_info *DisplayInfo)
+internal void AndroidSwapBuffers(android_display_info *DisplayInfo)
 {
 	if(DisplayInfo->Display == NULL)
 	{
@@ -130,8 +133,6 @@ internal void AndroidDisplayBufferInWindow(android_display_info *DisplayInfo)
 		return;
 	}
 
-	glClearColor(1, 0, 0, 1);
-	glClear(GL_COLOR_BUFFER_BIT);
 	eglSwapBuffers(DisplayInfo->Display, DisplayInfo->Surface);
 }
 
@@ -146,7 +147,7 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 			if(AndroidApp->window != NULL)
 			{
 				AndroidInitDisplay(&State->DisplayInfo, AndroidApp);
-				AndroidDisplayBufferInWindow(&State->DisplayInfo);
+				AndroidSwapBuffers(&State->DisplayInfo);
 				GlobalRunning = true;
 			}
 		} break;
@@ -167,6 +168,51 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 	}
 }
 
+void AndroidProcessAllEvents(struct android_app *AndroidApp, android_state *State)
+{
+	android_poll_source *Source;
+	int ident;
+	int events;
+	while((ident = ALooper_pollAll(GlobalRunning ? 0 : -1, NULL, &events, (void **)&Source)) >= 0)
+	{
+		// Process the event
+		if(Source != NULL)
+		{
+			Source->process(AndroidApp, Source);
+		}
+
+		// Check if exiting
+		if(AndroidApp->destroyRequested != 0)
+		{
+			AndroidDestroyDisplay(&State->DisplayInfo);
+			return;
+		}
+	}
+}
+
+internal android_game_code AndroidLoadGameCode(char *SourceDllName)
+{
+	android_game_code Result = {};
+
+	Result.GameCodeDll = dlopen(SourceDllName, RTLD_LAZY);
+	if(Result.GameCodeDll)
+	{
+		Result.UpdateAndRender = (game_update_and_render *)dlsym(Result.GameCodeDll, "GameUpdateAndRender");
+		Result.IsValid = Result.UpdateAndRender && true;
+	}
+	else
+	{
+		LOGE(dlerror());
+	}
+
+	if(!Result.IsValid)
+	{
+		Result.UpdateAndRender = 0;
+	}
+
+	return Result;
+}
+
 r64 AndroidGetWallClock()
 {
 	struct timespec tp;
@@ -180,38 +226,29 @@ void android_main(struct android_app *AndroidApp)
 	AndroidApp->userData = &State;
 	AndroidApp->onAppCmd = AndroidProcessEvent;
 
+	android_game_code Game = AndroidLoadGameCode("libmengine.so");
+
 	while(1)
 	{
-		// Poll Events
-		{
-			android_poll_source *Source;
-			int ident;
-			int events;
-			while((ident = ALooper_pollAll(GlobalRunning ? 0 : -1, NULL, &events, (void **)&Source)) >= 0)
-			{
-				// Process the event
-				if(Source != NULL)
-				{
-					Source->process(AndroidApp, Source);
-				}
+		AndroidProcessAllEvents(AndroidApp, &State);
 
-				// Check if exiting
-				if(AndroidApp->destroyRequested != 0)
-				{
-					AndroidDestroyDisplay(&State.DisplayInfo);
-					return;
-				}
-			}
-		}
+#define FRAME_TIMER 0
 
 		if(GlobalRunning)
 		{
+#if FRAME_TIMER
 			r64 frameStart = AndroidGetWallClock();
-			AndroidDisplayBufferInWindow(&State.DisplayInfo);
+#endif
+
+			if(Game.UpdateAndRender) Game.UpdateAndRender();
+			AndroidSwapBuffers(&State.DisplayInfo);
+
+#if FRAME_TIMER
 			r64 frameEnd = AndroidGetWallClock();
 
 			r64 frameDuration = frameEnd - frameStart;
-			LOGI("Frame Duration: %fms", frameStart, frameEnd, frameDuration);
+			LOGI("Frame Duration: %fms", frameDuration);
+#endif
 		}
 	}
 }

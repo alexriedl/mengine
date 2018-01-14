@@ -11,7 +11,7 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-                cppFlags ""
+                cppFlags "-DMENGINE_INTERNAL=1", "-DMENGINE_SLOW=1", "-DMENGINE_ANDROID=1"
             }
         }
     }
