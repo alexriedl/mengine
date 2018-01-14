@@ -24,20 +24,20 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-write-strings -Wno-un
 set(CMAKE_SHARED_LINKER_FLAGS
     "${CMAKE_SHARED_LINKER_FLAGS} -u ANativeActivity_onCreate")
 
-add_library(native-activity SHARED src/main/cpp/android_mengine.cpp)
-add_library(mengine SHARED src/main/cpp/mengine.cpp)
+add_library(mengine SHARED src/main/cpp/android_mengine.cpp)
+add_library(pacman SHARED src/main/cpp/mengine.cpp)
 
-target_include_directories(native-activity PRIVATE
+target_include_directories(mengine PRIVATE
     ${ANDROID_NDK}/sources/android/native_app_glue)
 
 # add lib dependencies
 target_link_libraries(
-    mengine
+    pacman
     EGL
     GLESv1_CM)
 
 target_link_libraries(
-    native-activity
+    mengine
     android
     native_app_glue
     EGL

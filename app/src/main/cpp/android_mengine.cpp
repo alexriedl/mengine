@@ -226,7 +226,7 @@ void android_main(struct android_app *AndroidApp)
 	AndroidApp->userData = &State;
 	AndroidApp->onAppCmd = AndroidProcessEvent;
 
-	android_game_code Game = AndroidLoadGameCode("libmengine.so");
+	android_game_code Game = AndroidLoadGameCode("libpacman.so");
 
 	while(1)
 	{
