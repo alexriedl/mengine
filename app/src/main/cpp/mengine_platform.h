@@ -71,10 +71,10 @@ typedef real64 r64;
 #define Align8(Value) ((Value + 7) & ~7)
 #define Align16(Value) ((Value + 15) & ~15)
 
-inline uint32 SafeTruncateUInt64(uint64 Value)
+inline u32 SafeTruncateUInt64(u64 Value)
 {
 	Assert(Value <= 0xFFFFFFFF);
-	return (uint32)Value;
+	return (u32)Value;
 }
 
 typedef struct game_render_settings

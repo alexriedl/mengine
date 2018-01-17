@@ -6,13 +6,10 @@
       "command": "make all",
       "type": "shell",
       "group": { "kind": "build", "isDefault": true },
-      "problemMatcher": {
-        "base": "$gcc",
-        "fileLocation": "absolute"
-      },
+      "problemMatcher": { "base": "$gcc", "fileLocation": "absolute" },
       "presentation": {
         "echo": true,
-        "reveal": "silent",
+        "reveal": "always",
         "focus": false,
         "panel": "shared"
       }
