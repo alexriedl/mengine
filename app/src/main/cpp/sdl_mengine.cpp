@@ -1,9 +1,10 @@
 #include "mengine_platform.h"
-#include "mengine_shared.h"
 
 #include <sys/stat.h> // Used to get file info
 #include <unistd.h>   // readlink
 #include <dlfcn.h>    // Used to load dynamic library
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_opengl.h>
 
 #include "sdl_mengine.h"
 
@@ -11,6 +12,33 @@ global_variable b32 GlobalRunning;
 global_variable b32 GlobalPaused;
 
 global_variable b32 DEBUGGlobalShowCursor;
+
+internal void CatStrings(size_t SourceACount, char *SourceA, size_t SourceBCount, char *SourceB, size_t DestCount,
+                         char *Dest)
+{
+	for(int Index = 0; Index < SourceACount; Index++)
+	{
+		*Dest++ = *SourceA++;
+	}
+
+	for(int Index = 0; Index < SourceBCount; Index++)
+	{
+		*Dest++ = *SourceB++;
+	}
+
+	*Dest++ = 0;
+}
+
+internal int StringLength(char *Str)
+{
+	int Count = 0;
+	while(*Str++)
+	{
+		++Count;
+	}
+
+	return Count;
+}
 
 b32 SDLInitDisplay(sdl_display_info *DisplayInfo)
 {
@@ -66,6 +94,13 @@ internal void SDLSwapBuffers(sdl_display_info *DisplayInfo)
 	SDL_GL_SwapWindow(DisplayInfo->Window);
 }
 
+internal sdl_window_dimension SDLGetWindowDimension(sdl_display_info *DisplayInfo)
+{
+	sdl_window_dimension Result;
+	SDL_GetWindowSize(DisplayInfo->Window, &Result.Width, &Result.Height);
+	return Result;
+}
+
 internal void SDLProcessPendingEvents(sdl_state *State)
 {
 	SDL_Event Event;
@@ -84,12 +119,12 @@ internal void SDLProcessPendingEvents(sdl_state *State)
 				{
 					case SDL_WINDOWEVENT_SIZE_CHANGED:
 					{
-						LOGI("SDL_WINDOWEVENT_SIZE_CHANGED (%d, %d)\n", Event.window.data1, Event.window.data2);
+						LOGI("SDL_WINDOWEVENT_SIZE_CHANGED (%d, %d)", Event.window.data1, Event.window.data2);
 					}
 					break;
 					case SDL_WINDOWEVENT_FOCUS_GAINED:
 					{
-						LOGI("SDL_WINDOWEVENT_FOCUS_GAINED\n");
+						LOGI("SDL_WINDOWEVENT_FOCUS_GAINED");
 					}
 					break;
 					case SDL_WINDOWEVENT_EXPOSED:
@@ -188,22 +223,27 @@ internal sdl_game_code SDLLoadGameCode(char *SourceDllName)
 		Result.GameCodeDll = dlopen(SourceDllName, RTLD_LAZY);
 		if(Result.GameCodeDll)
 		{
-			Result.UpdateAndRender = (game_update_and_render *)dlsym(Result.GameCodeDll, "GameUpdateAndRender");
-			Result.IsValid = Result.UpdateAndRender && true;
+			Result.Update = (game_update *)dlsym(Result.GameCodeDll, "GameUpdate");
+			Result.Render = (game_render *)dlsym(Result.GameCodeDll, "GameRender");
+			Result.IsValid = Result.Update && Result.Render;
 		}
 		else
 		{
-			LOGE(dlerror());
+			LOGE("%s", dlerror());
 		}
 	}
 
 	if(!Result.IsValid)
 	{
-		Result.UpdateAndRender = 0;
+		Result.Update = 0;
+		Result.Render = 0;
 	}
 
 	return Result;
 }
+
+#include "mengine_opengl.h"
+#include "mengine_opengl.cpp"
 
 int main()
 {
@@ -220,14 +260,22 @@ int main()
 	if(SDLInitDisplay(&State.DisplayInfo))
 	{
 		sdl_game_code Game = SDLLoadGameCode(SourceGameCodeDllFullPath);
+
+		sdl_window_dimension Dimensions = SDLGetWindowDimension(&State.DisplayInfo);
+		game_render_commands Commands = DefaultRenderCommands(Dimensions.Width / 2, Dimensions.Height / 2);
+
 		GlobalRunning = true;
 		while(GlobalRunning)
 		{
 			SDLProcessPendingEvents(&State);
+			Dimensions = SDLGetWindowDimension(&State.DisplayInfo);
 
 			if(!GlobalPaused)
 			{
-				if(Game.UpdateAndRender) Game.UpdateAndRender();
+				if(Game.Update) Game.Update();
+				if(Game.Render) Game.Render();
+				OpenGLRenderCommands(&Commands, Dimensions.Width, Dimensions.Height);
+
 				SDLSwapBuffers(&State.DisplayInfo);
 			}
 		}

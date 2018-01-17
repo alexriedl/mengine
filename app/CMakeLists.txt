@@ -31,15 +31,12 @@ target_include_directories(mengine PRIVATE
     ${ANDROID_NDK}/sources/android/native_app_glue)
 
 # add lib dependencies
-target_link_libraries(
-    pacman
-    EGL
-    GLESv1_CM)
+target_link_libraries(pacman)
 
 target_link_libraries(
     mengine
     android
     native_app_glue
     EGL
-    GLESv1_CM
+    GLESv2
     log)

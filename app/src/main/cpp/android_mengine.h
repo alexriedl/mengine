@@ -14,7 +14,8 @@
 
 struct android_game_code
 {
-	game_update_and_render *UpdateAndRender;
+	game_update *Update;
+	game_render *Render;
 
 	void *GameCodeDll;
 	time_t DllLastWriteTime;

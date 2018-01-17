@@ -4,14 +4,6 @@
 extern "C" {
 #endif
 
-#if MENGINE_ANDROID
-#include <EGL/egl.h>
-#include <GLES/gl.h>
-#elif MENGINE_SDL
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
-#endif
-
 #include <stdint.h> // Needed for many basic types
 
 typedef int8_t int8;
@@ -85,8 +77,31 @@ inline uint32 SafeTruncateUInt64(uint64 Value)
 	return (uint32)Value;
 }
 
-#define GAME_UPDATE_AND_RENDER(Name) void Name()
-typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+typedef struct game_render_settings
+{
+	u32 Width;
+	u32 Height;
+} game_render_settings;
+
+typedef struct game_render_commands
+{
+	game_render_settings Settings;
+} game_render_commands;
+
+inline game_render_commands DefaultRenderCommands(u32 Width, u32 Height)
+{
+	game_render_commands Commands = {};
+
+	Commands.Settings.Width = Width;
+	Commands.Settings.Height = Height;
+
+	return Commands;
+}
+
+#define GAME_UPDATE(Name) void Name()
+typedef GAME_UPDATE(game_update);
+#define GAME_RENDER(Name) void Name()
+typedef GAME_RENDER(game_render);
 
 #ifdef __cplusplus
 }

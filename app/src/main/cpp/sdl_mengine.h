@@ -1,9 +1,9 @@
 #if !defined(SDL_MENGINE_H)
 
 #if MENGINE_SLOW
-#define LOGI(...) printf(__VA_ARGS__)
-#define LOGW(...) printf(__VA_ARGS__)
-#define LOGE(...) printf(__VA_ARGS__)
+#define LOGI(...) printf("(I): " __VA_ARGS__); printf("\n");
+#define LOGW(...) printf("(W): " __VA_ARGS__); printf("\n");
+#define LOGE(...) printf("(E): " __VA_ARGS__); printf("\n");
 #else
 #define LOGI(...)
 #define LOGW(...)
@@ -14,11 +14,18 @@
 
 struct sdl_game_code
 {
-	game_update_and_render *UpdateAndRender;
+	game_update *Update;
+	game_render *Render;
 
 	void *GameCodeDll;
 	time_t DllLastWriteTime;
 	b32 IsValid;
+};
+
+struct sdl_window_dimension
+{
+	int Width;
+	int Height;
 };
 
 struct sdl_display_info

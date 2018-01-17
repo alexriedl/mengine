@@ -1,9 +1,10 @@
 #include "mengine_platform.h"
-#include "mengine_shared.h"
 
 #include <android_native_app_glue.h>
 #include <memory.h>   // Used for memset
 #include <dlfcn.h>    // Used to load dynamic library
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
 
 #include "android_mengine.h"
 
@@ -35,7 +36,9 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 
 	EGLDisplay Display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
-	eglInitialize(Display, 0, 0);
+	EGLint Major, Minor;
+	eglInitialize(Display, &Major, &Minor);
+	LOGI("EGL Initialized. Version: %d.%d", Major, Minor);
 
 	/* Here, the application chooses the configuration it desires.
 	 * find the best match if possible, otherwise use the very first one
@@ -61,6 +64,7 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 	if(ConfigIndex == NumConfigs)
 	{
 		Config = SupportedConfigs[0];
+		LOGI("Unable to find request config. Using first set");
 	}
 
 	/* EGL_NATIVE_VISUAL_ID is an attribute of the EGLConfig that is
@@ -94,11 +98,6 @@ internal int AndroidInitDisplay(android_display_info *DisplayInfo, android_app *
 		const GLubyte *InfoValue = glGetString(Info);
 		LOGI("OpenGL Info: %s", InfoValue);
 	}
-	// Initialize GL state.
-	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_FASTEST);
-	glEnable(GL_CULL_FACE);
-	glShadeModel(GL_SMOOTH);
-	glDisable(GL_DEPTH_TEST);
 
 	return 0;
 }
@@ -119,7 +118,6 @@ internal void AndroidDestroyDisplay(android_display_info *DisplayInfo)
 		eglTerminate(DisplayInfo->Display);
 	}
 
-	GlobalRunning = false;
 	DisplayInfo->Display = EGL_NO_DISPLAY;
 	DisplayInfo->Context = EGL_NO_CONTEXT;
 	DisplayInfo->Surface = EGL_NO_SURFACE;
@@ -155,6 +153,7 @@ internal void AndroidProcessEvent(android_app *AndroidApp, int32_t Command)
 		{
 			LOGI("COMMAND: Term Window");
 			AndroidDestroyDisplay(&State->DisplayInfo);
+			GlobalRunning = false;
 		} break;
 		case APP_CMD_GAINED_FOCUS:
 		{
@@ -197,8 +196,9 @@ internal android_game_code AndroidLoadGameCode(char *SourceDllName)
 	Result.GameCodeDll = dlopen(SourceDllName, RTLD_LAZY);
 	if(Result.GameCodeDll)
 	{
-		Result.UpdateAndRender = (game_update_and_render *)dlsym(Result.GameCodeDll, "GameUpdateAndRender");
-		Result.IsValid = Result.UpdateAndRender && true;
+			Result.Update = (game_update *)dlsym(Result.GameCodeDll, "GameUpdate");
+			Result.Render = (game_render *)dlsym(Result.GameCodeDll, "GameRender");
+			Result.IsValid = Result.Update && Result.Render;
 	}
 	else
 	{
@@ -207,7 +207,8 @@ internal android_game_code AndroidLoadGameCode(char *SourceDllName)
 
 	if(!Result.IsValid)
 	{
-		Result.UpdateAndRender = 0;
+		Result.Update = 0;
+		Result.Render = 0;
 	}
 
 	return Result;
@@ -220,6 +221,9 @@ r64 AndroidGetWallClock()
 	return 1000.0 * tp.tv_sec + (u64)tp.tv_nsec / 1e6;
 }
 
+#include "mengine_opengl.h"
+#include "mengine_opengl.cpp"
+
 void android_main(struct android_app *AndroidApp)
 {
 	android_state State = {0};
@@ -227,6 +231,8 @@ void android_main(struct android_app *AndroidApp)
 	AndroidApp->onAppCmd = AndroidProcessEvent;
 
 	android_game_code Game = AndroidLoadGameCode("libpacman.so");
+
+	game_render_commands Commands = DefaultRenderCommands(State.DisplayInfo.Width / 2, State.DisplayInfo.Height / 2);
 
 	while(1)
 	{
@@ -240,7 +246,10 @@ void android_main(struct android_app *AndroidApp)
 			r64 frameStart = AndroidGetWallClock();
 #endif
 
-			if(Game.UpdateAndRender) Game.UpdateAndRender();
+			if(Game.Update) Game.Update();
+			if(Game.Render) Game.Render();
+			OpenGLRenderCommands(&Commands, State.DisplayInfo.Width, State.DisplayInfo.Height);
+
 			AndroidSwapBuffers(&State.DisplayInfo);
 
 #if FRAME_TIMER
